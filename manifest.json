@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "guilhermeris.event-widget",
+  "name": "event-widget",
+  "version": "1.0.0",
+  "author": "guilhermeris",
+  "license": "MIT",
+  "description": "Event Widget with calendar feeds and  click to join Microsoft Teams.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "event-widget",
+    "description": "Shows the next upcoming event (e.g. \"Daily in 15 min\") and joins Microsoft Teams calls",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
