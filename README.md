@@ -21,6 +21,7 @@ Native linux topbar event widget. Shows the next upcoming event from your calend
 - **Bar Widget**: Shows the next event with live countdown (`Daily in 15 min`, `Daily · 15 min left`, `Daily · 14:00`, `Daily · Tmrw 14:00`, `Daily · Wed 14:00`)
 - **Quick Join**: Click to open the agenda panel; single click on "Join Meeting" opens Microsoft Teams links in the native Teams client
 - **Calendar links**: Events with an iCalendar `URL` property can be opened from the agenda; no provider-specific calendar URL is assumed
+- **Todoist tasks**: Todoist iCal tasks show a completion button and are closed through the Todoist API
 - **Teams without links**: Outlook events that only contain a Microsoft Teams location are recognized and open the Teams Calendar page via `msteams:/l/calendar`
 - **Instant Actions**: Right-click on the bar widget to join the next meeting immediately; middle-click to force-refresh
 - **Repeating Events**: Automatically expands repeating events (daily standups, weekly meetings) and respects cancelled or rescheduled instances
@@ -62,12 +63,23 @@ omarchy bar set guilhermeris.event-widget icsUrl '<your-ics-feed-url>'
 omarchy bar set guilhermeris.event-widget icsUrl2 '<your-second-ics-feed-url>'
 ```
 
+Todoist completion uses an API token configured directly on this widget:
+
+```sh
+omarchy bar set guilhermeris.event-widget todoistApiKey '<your-todoist-api-token>'
+```
+
+Tasks from a Todoist iCal feed then show a check button in the agenda. The
+token is passed to `curl` through stdin and never appears in its process
+arguments.
+
 Available settings (`omarchy bar set <widget> <key> <value>`):
 
 | Key                   | Default | Description                                         |
 | --------------------- | ------- | --------------------------------------------------- |
 | `icsUrl`              | —       | First calendar iCal feed URL (required)              |
 | `icsUrl2`             | `""`    | Optional second calendar iCal feed URL               |
+| `todoistApiKey`       | `""`    | Todoist API token used to complete Todoist tasks    |
 | `refreshMinutes`      | `5`     | How often to refetch the feed                       |
 | `showDaysAhead`       | `3`     | How many days ahead to list meetings                |
 | `maxTitleLength`      | `28`    | Bar label truncation length                         |

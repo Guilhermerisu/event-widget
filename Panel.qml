@@ -66,6 +66,18 @@ Panel {
     if (root.hostWidget && event) root.hostWidget.openCalendar(event)
   }
 
+  function canCompleteTodoist(event) {
+    return root.hostWidget && root.hostWidget.canCompleteTodoist(event)
+  }
+
+  function isTodoistCompleting(event) {
+    return root.hostWidget && root.hostWidget.isTodoistCompleting(event)
+  }
+
+  function completeTodoist(event) {
+    if (root.hostWidget && event) root.hostWidget.completeTodoist(event)
+  }
+
   function refreshNow() {
     if (root.hostWidget) root.hostWidget.refresh()
   }
@@ -397,7 +409,8 @@ Panel {
                           anchors.verticalCenter: parent.verticalCenter
                           anchors.leftMargin: Style.space(10)
                           anchors.rightMargin: Style.space(10)
-                          spacing: Style.space(8)
+                          spacing: Style.space(1)
+                          z: 1
 
                           Text {
                             Layout.alignment: Qt.AlignVCenter
@@ -407,6 +420,18 @@ Panel {
                             font.family: root.contentFontFamily
                             font.pixelSize: Style.font.bodySmall
                             font.bold: true
+                          }
+
+                          PanelActionButton {
+                            visible: root.canCompleteTodoist(meeting)
+                            enabled: !root.isTodoistCompleting(meeting)
+                            iconText: root.isTodoistCompleting(meeting) ? "…" : "○"
+                            tooltipText: root.isTodoistCompleting(meeting)
+                              ? "Completing Todoist task…" : "Complete Todoist task"
+                            foreground: Color.accent
+                            fontFamily: root.contentFontFamily
+                            z: 2
+                            onClicked: root.completeTodoist(meeting)
                           }
 
                           Text {

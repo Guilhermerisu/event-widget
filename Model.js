@@ -430,10 +430,25 @@ function findMeetingUrl(text) {
   return null
 }
 
+// Todoist calendar feeds commonly expose the task id in the UID or in a
+// Todoist task URL. Keep this limited to feeds explicitly identified as
+// Todoist so numeric UIDs from other calendars are never treated as tasks.
+function findTodoistTaskId(text) {
+  var source = String(text || "")
+  var url = /todoist\.com\/showTask\?id=([A-Za-z0-9_-]+)/i.exec(source)
+  if (url) return url[1]
+  url = /todoist\.com\/app\/task\/([A-Za-z0-9_-]+)/i.exec(source)
+  if (url) return url[1]
+
+  // Current Todoist UIDs use: user-id-task-id-YYYYMMDD@todoist.com.
+  var uid = /(?:^|\s)\d+-([A-Za-z0-9]+)-\d{8}@todoist\.com(?:\s|$)/i.exec(source)
+  return uid ? uid[1] : null
+}
+
 function parseEventBlock(block) {
   var ev = {
     uid: null, title: "", start: null, end: null, allDay: false, tzid: null,
-    meetUrl: null, rrule: null, exdates: [],
+    meetUrl: null, todoistTaskId: null, rrule: null, exdates: [],
     durationMs: 0, startKey: 0, tzInfo: null
   }
   var lines = block.lines
@@ -507,6 +522,7 @@ function parseIcs(raw, options) {
   options = options || {}
   var lookaheadDays = Math.max(1, parseInt(options.lookaheadDays, 10) || 3)
   var maxOccurrences = Math.max(1, parseInt(options.maxEvents, 10) || 80)
+  var todoistFeed = options.todoistFeed === true
   var now = options.now || new Date()
   var fromKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate()
 
@@ -524,7 +540,13 @@ function parseIcs(raw, options) {
   var parsed = []
   for (var b = 0; b < blocks.length; b++) {
     var ev = parseEventBlock({ lines: blocks[b] })
-    if (ev) parsed.push(ev)
+    if (ev) {
+      if (todoistFeed) {
+        ev.todoistTaskId = findTodoistTaskId((ev.uid || "") + " "
+          + (ev.url || "") + " " + (ev.description || "") + " " + (ev.location || ""))
+      }
+      parsed.push(ev)
+    }
   }
 
   var masters = []
@@ -579,6 +601,7 @@ function parseIcs(raw, options) {
         end: endDate,
         allDay: src.allDay === true,
         meetUrl: src.meetUrl || null,
+        todoistTaskId: src.todoistTaskId || master.todoistTaskId || null,
         url: src.url || "",
         location: src.location || "",
         description: src.description || ""

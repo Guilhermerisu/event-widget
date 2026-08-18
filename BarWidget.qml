@@ -29,6 +29,8 @@ BarWidget {
     return String(v).toLowerCase() !== "false"
   }
   readonly property string browserCommand: String(setting("browserCommand", "") || "").trim()
+  readonly property string todoistApiToken: String(setting("todoistApiKey", "") || "").trim()
+  readonly property string todoistApiBase: "https://api.todoist.com/api/v1"
   // ---- state
   readonly property bool configured: icsUrl !== "" || icsUrl2 !== ""
   property var rawEvents: []
@@ -48,6 +50,9 @@ BarWidget {
   property bool primaryFetchFinished: false
   property bool secondaryFetchFinished: false
   property int pendingFetches: 0
+  property var todoistCompletedIds: []
+  property var todoistCompletingIds: []
+  property string todoistError: ""
 
   readonly property string label: configured && nextMeeting
     ? (nextMeeting.meetUrl ? "  " : "󰃯  ") + Model.formatLabel(nextMeeting, root.now, maxTitleLength)
@@ -77,6 +82,44 @@ BarWidget {
     if (!event) return
     if (event.meetUrl) openMeetingUrl(event.meetUrl)
     else openCalendar(event)
+  }
+
+  function canCompleteTodoist(event) {
+    return !!(event && event.todoistTaskId && root.todoistApiToken !== "")
+  }
+
+  function isTodoistCompleting(event) {
+    return !!(event && event.todoistTaskId
+      && root.todoistCompletingIds.indexOf(event.todoistTaskId) !== -1)
+  }
+
+  function completeTodoist(event) {
+    if (!root.canCompleteTodoist(event) || root.isTodoistCompleting(event)) return
+    var taskId = String(event.todoistTaskId)
+    root.todoistCompletingIds = root.todoistCompletingIds.concat([taskId])
+    todoistActionProc.pendingTaskId = taskId
+    todoistActionProc.stdinEnabled = true
+    todoistActionProc.command = ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
+      root.todoistApiBase + "/tasks/" + encodeURIComponent(taskId) + "/close"]
+    todoistActionProc.running = true
+  }
+
+  function onTodoistActionExited(exitCode) {
+    var taskId = todoistActionProc.pendingTaskId
+    root.todoistCompletingIds = root.todoistCompletingIds.filter(function(id) { return id !== taskId })
+    if (exitCode !== 0) {
+      root.todoistError = "Couldn't complete the Todoist task."
+      root.meetingDataChanged()
+      return
+    }
+
+    root.todoistError = ""
+    if (root.todoistCompletedIds.indexOf(taskId) === -1)
+      root.todoistCompletedIds = root.todoistCompletedIds.concat([taskId])
+    root.rawEvents = root.rawEvents.filter(function(event) {
+      return !event || event.todoistTaskId !== taskId
+    })
+    root.recalc()
   }
 
   // The feed URL is a credential, so it must never appear in a process
@@ -123,7 +166,8 @@ BarWidget {
       var parsed = Model.parseIcs(text, {
         lookaheadDays: root.showDaysAhead + 1,
         maxEvents: 80,
-        now: root.now
+        now: root.now,
+        todoistFeed: /todoist\.com/i.test(i === 0 ? root.icsUrl : root.icsUrl2)
       })
       for (var j = 0; j < parsed.length; j++) events.push(parsed[j])
     }
@@ -134,14 +178,17 @@ BarWidget {
       return
     }
 
-    root.rawEvents = events
-    root.meetings = Model.buildUpcoming(events, root.now, {
+    root.rawEvents = events.filter(function(event) {
+      return !event || !event.todoistTaskId
+        || root.todoistCompletedIds.indexOf(event.todoistTaskId) === -1
+    })
+    root.meetings = Model.buildUpcoming(root.rawEvents, root.now, {
       lookaheadDays: root.showDaysAhead,
       showOnlyWithVideoLink: root.showOnlyWithVideoLink,
       maxRows: 8
     })
-    root.upcomingToday = Model.upcomingToday(events, root.now)
-    root.scheduleGroups = Model.buildScheduleGroups(events, root.now, {
+    root.upcomingToday = Model.upcomingToday(root.rawEvents, root.now)
+    root.scheduleGroups = Model.buildScheduleGroups(root.rawEvents, root.now, {
       lookaheadDays: root.showDaysAhead,
       maxRows: 20
     })
@@ -302,6 +349,20 @@ BarWidget {
     onExited: function(exitCode) {
       root.onFeedExited(1, exitCode)
     }
+  }
+
+  Process {
+    id: todoistActionProc
+    property string pendingTaskId: ""
+    stderr: StdioCollector {
+      id: todoistActionErr
+      waitForEnd: true
+    }
+    onStarted: {
+      todoistActionProc.write("header = \"Authorization: Bearer " + root.todoistApiToken + "\"\n")
+      todoistActionProc.stdinEnabled = false
+    }
+    onExited: function(exitCode) { root.onTodoistActionExited(exitCode) }
   }
 
   Loader {
